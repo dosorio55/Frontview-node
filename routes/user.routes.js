@@ -3,17 +3,13 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from 'bcrypt';
 import { isAuth } from "../authentication/jwt.js";
-
+import { Profile } from "../models/Profiles.js";
 
 const userRoutes = express.Router();
 
-
-
 //get all users
-userRoutes.get('/', [isAuth], async (req, res) => {
-
-    const { email } = req.authority
-    console.log(email) 
+userRoutes.get('/', async (req, res) => {
+    //const { email } = req.authority
     try {
         //   if (email === "dosorioadmin@gmail.com") {
 
@@ -28,41 +24,50 @@ userRoutes.get('/', [isAuth], async (req, res) => {
     }
 });
 
-
 //Register user
 userRoutes.post('/', async (req, res, next) => {
-
+    
     try {
-        const { body } = req
-
-        const previousUser = await User.findOne({ email: body.email })
-
+        const { email, password, description, image, headline, name } = req.body
+        
+        const previousUser = await User.findOne({ email })
+        
         if (previousUser) {
             const error = new Error('The user is already in use')
             return next(error)
         }
 
-        const pwdCryped = await bcrypt.hash(body.password, 10)
+        const pwdCryped = await bcrypt.hash(password, 10)
 
         const newUser = new User({
-            email: body.email,
-            password: pwdCryped
-        })
+            email,
+            password: pwdCryped,
+            image,
+            headline
+        });
+
+        const newProfile = new Profile({
+            name,
+            description,
+            image,
+            headline,
+            email: req.body.email,
+        });
+
+        const createdProfile = await newProfile.save();
 
         const savedUser = await newUser.save()
 
         return res.json({
             status: 201,
             message: 'Registered successfully',
-            data: { id: savedUser._id }
+            data: { id: savedUser._id, createdProfile }
         });
 
     } catch (error) {
         return next(error)
     }
-
 })
-
 
 //login user
 userRoutes.post('/login', async (req, res, next) => {
@@ -86,8 +91,7 @@ userRoutes.post('/login', async (req, res, next) => {
                 id: user._id,
                 email: user.email
             },
-            req.app.get("secretKey"),
-            { expiresIn: "1h" }
+            req.app.get("secretKey")
         );
 
         return res.json({
